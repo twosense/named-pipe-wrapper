@@ -10,11 +10,17 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
-    - name: Install dependencies
-      run: dotnet restore
+    - name: Setup Nuget.exe
+      uses: warrenbuckley/Setup-Nuget@v1
+     
+    - name: Restore packages
+      run: nuget restore NamedPipeWrapper.sln
+    
+    - name: Setup VS2019
+      uses: warrenbuckley/Setup-MSBuild@v1
     
     - name: Build
-      run: dotnet build --configuration Release --no-restore
+      run: msbuild NamedPipeWrapper.sln
     
     - name: Test
       run: dotnet test --verbosity normal --logger:"nunit;LogFilePath=TestResults/test-result.xml"
