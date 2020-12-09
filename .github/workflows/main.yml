@@ -17,7 +17,7 @@ jobs:
       run: nuget restore NamedPipeWrapper.sln
     
     - name: Setup VS2019
-      uses: warrenbuckley/Setup-MSBuild@v1
+      uses: microsoft/setup-msbuild@v1.0.2
     
     - name: Build
       run: msbuild NamedPipeWrapper.sln
