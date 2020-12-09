@@ -12,6 +12,9 @@ jobs:
     
     - name: Setup Nuget.exe
       uses: nuget/Setup-Nuget@v1
+    
+    - name: Setup VSTest Path
+      uses: darenm/Setup-VSTest@v1
      
     - name: Restore packages
       run: nuget restore NamedPipeWrapper.sln
@@ -23,10 +26,10 @@ jobs:
       run: msbuild NamedPipeWrapper.sln
     
     - name: Test
-      run: dotnet test --verbosity normal --logger:"nunit;LogFilePath=TestResults/test-result.xml"
+      run: vstest.console.exe .\UnitTests\bin\Debug\UnitTests.dll /Logger:trx
         
     - uses: MirrorNG/nunit-reporter@v1.0.9
       if: always()
       with:
-        path: "tests/**/TestResults/*.xml"
+        path: "tests/**/TestResults/*.trx"
         access-token: ${{ secrets.GITHUB_TOKEN }}
