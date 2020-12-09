@@ -1,0 +1,31 @@
+name: .NET Build/Test
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 4.0
+    
+    - name: Install dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Test
+      run: dotnet test --verbosity normal --logger:"nunit;LogFilePath=TestResults/test-result.xml"
+        
+    - uses: MirrorNG/nunit-reporter@v1.0.9
+      if: always()
+      with:
+        path: "tests/**/TestResults/*.xml"
+        access-token: ${{ secrets.GITHUB_TOKEN }}
