@@ -6,8 +6,6 @@ using System.Text;
 using NamedPipeWrapper.IO;
 using NamedPipeWrapper.Threading;
 using System.Security.Principal;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace NamedPipeWrapper
 {
@@ -17,9 +15,6 @@ namespace NamedPipeWrapper
 	/// <typeparam name="TReadWrite">Reference type to read from and write to the named pipe</typeparam>
 	public class NamedPipeServer<TReadWrite> : Server<TReadWrite, TReadWrite> where TReadWrite : class
 	{
-		private string pipeName;
-		private bool option;
-
 		/// <summary>
 		/// Constructs a new <c>NamedPipeServer</c> object that listens for client connections on the given <paramref name="pipeName"/>.
 		/// </summary>
@@ -27,12 +22,6 @@ namespace NamedPipeWrapper
 		public NamedPipeServer(string pipeName)
 			: base(pipeName)
 		{
-		}
-
-		public NamedPipeServer(string pipeName, bool option = false) : base(pipeName, option)
-		{
-			this.pipeName = pipeName;
-			this.option = option;
 		}
 
 		/// <summary>
@@ -76,7 +65,6 @@ namespace NamedPipeWrapper
 		public event PipeExceptionEventHandler Error;
 
 		private readonly string _pipeName;
-		private readonly bool _option;
 		private readonly int _bufferSize;
 		private readonly PipeSecurity _security;
 		private readonly List<NamedPipeConnection<TRead, TWrite>> _connections = new List<NamedPipeConnection<TRead, TWrite>>();
@@ -86,25 +74,13 @@ namespace NamedPipeWrapper
 		private volatile bool _shouldKeepRunning;
 		private volatile bool _isRunning;
 
-		private readonly NamedPipeServerStream _server;
-		private readonly StreamReader _reader;
-
 		/// <summary>
 		/// Constructs a new <c>NamedPipeServer</c> object that listens for client connections on the given <paramref name="pipeName"/>.
 		/// </summary>
 		/// <param name="pipeName">Name of the pipe to listen on</param>
-		/// /// <param name="serverOnlyFlag">Flag indicating whether we are running this as server-only or not</param>
-		public Server(string pipeName, bool option = false)
+		public Server(string pipeName)
 		{
 			_pipeName = pipeName;
-			_option = option;
-
-			if (_option)
-			{
-				_server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 10, PipeTransmissionMode.Message);
-				_reader = new StreamReader(_server);
-			}
-
 		}
 
 		/// <summary>
@@ -130,22 +106,6 @@ namespace NamedPipeWrapper
 			var worker = new Worker();
 			worker.Error += OnError;
 			worker.DoWork(ListenSync);
-		}
-
-		/// <summary>
-		/// Begins listening for client connections in a separate background thread.
-		/// This method returns immediately.
-		/// </summary>
-		public void StartServerOnly()
-		{
-			_shouldKeepRunning = true;
-			var worker = new Worker();
-			worker.Error += OnError;
-			worker.DoWork(ListenServerSync);
-
-			var readworker = new Worker();
-			readworker.Error += OnError;
-			readworker.DoWork(ServerRead);
 		}
 
 		/// <summary>
@@ -276,11 +236,6 @@ namespace NamedPipeWrapper
 				}
 			}
 
-			if (_server != null && _server.IsConnected)
-			{
-				_server.Close();
-			}
-
 			// If background thread is still listening for a client to connect,
 			// initiate a dummy connection that will allow the thread to exit.
 			var dummyClient = new NamedPipeClient<TRead, TWrite>(_pipeName);
@@ -288,27 +243,6 @@ namespace NamedPipeWrapper
 			dummyClient.WaitForConnection(TimeSpan.FromSeconds(2));
 			dummyClient.Stop();
 			dummyClient.WaitForDisconnection(TimeSpan.FromSeconds(2));
-
-		}
-
-		public void Read()
-		{
-			try
-			{
-				if (_server.IsConnected && !_reader.EndOfStream)
-				{
-					string message = _reader.ReadLine();
-					if (message != null)
-					{
-						// Temporary - do something else with the command when we receive it
-						Console.WriteLine(String.Join("", message));
-					}
-				}
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine("Could not read from pipe");
-			}
 		}
 
 		#region Private methods
@@ -317,20 +251,6 @@ namespace NamedPipeWrapper
 		{
 			_isRunning = true;
 			while (_shouldKeepRunning) { WaitForConnection(); }
-			_isRunning = false;
-		}
-
-		private void ListenServerSync()
-		{
-			_isRunning = true;
-			while (_shouldKeepRunning) { WaitForExternalConnection(); }
-			_isRunning = false;
-		}
-
-		private void ServerRead()
-		{
-			_isRunning = true;
-			while (_shouldKeepRunning) { Read(); }
 			_isRunning = false;
 		}
 
@@ -375,22 +295,6 @@ namespace NamedPipeWrapper
 				Cleanup(dataPipe);
 
 				ClientOnDisconnected(connection);
-			}
-		}
-
-		private async void WaitForExternalConnection()
-		{
-			try
-			{
-				if (!_server.IsConnected)
-				{
-					_server.WaitForConnection();
-				}
-			}
-			// Catch the IOException that is raised if the pipe is broken or disconnected.
-			catch (Exception e)
-			{
-				Console.Error.WriteLine("Named pipe is broken or disconnected: {0}", e);
 			}
 		}
 
