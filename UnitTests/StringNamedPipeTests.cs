@@ -18,39 +18,64 @@ namespace UnitTests
         private StringNamedPipeClient _client;
 
         private ConcurrentQueue<string> _serverMessageQueue;
-        private ManualResetEvent _clientMessageReceivedEvent;
+        private ConcurrentQueue<string> _clientMessageQueue;
+        
+        private ManualResetEvent _serverReceivedMessageEvent;
+        private ManualResetEvent _clientReceivedMessageEvent;
 
         [SetUp]
         public void SetUp()
         {
             _serverMessageQueue = new ConcurrentQueue<string>();
-            _clientMessageReceivedEvent = new ManualResetEvent(false);
+            _clientMessageQueue = new ConcurrentQueue<string>();
+            
+            _serverReceivedMessageEvent = new ManualResetEvent(false);
+            _clientReceivedMessageEvent = new ManualResetEvent(false);
 
             _server = new StringNamedPipeServer(PipeName);
             _client = new StringNamedPipeClient(PipeName);
 
             _server.ClientMessage += OnClientMessageReceived;
             _server.Start();
+
+            _client.ServerMessage += OnServerMessageReceived;
             _client.Start();
             _client.WaitForConnection();
+        }
+
+        private void OnServerMessageReceived(NamedPipeConnection<string, string> connection, string message)
+        {
+            _clientMessageQueue.Enqueue(message);
+            _clientReceivedMessageEvent.Set();
         }
 
         private void OnClientMessageReceived(NamedPipeConnection<string, string> connection, string message)
         {
             _serverMessageQueue.Enqueue(message);
-            _clientMessageReceivedEvent.Set();
+            _serverReceivedMessageEvent.Set();
         }
 
         [Test]
-        public void ReadMessageShouldMatchSentMessage()
+        public void ServerShouldReceiveSameMessageClientSent()
         {
             var message = Guid.NewGuid().ToString();
             _client.PushMessage(message);
 
-            _clientMessageReceivedEvent.WaitOne(Timeout);
+            _serverReceivedMessageEvent.WaitOne(Timeout);
 
-            string messageReceived;
-            _serverMessageQueue.TryDequeue(out messageReceived);
+            _serverMessageQueue.TryDequeue(out var messageReceived);
+            messageReceived.Should().Be(message);
+        }
+
+        [Test]
+        public void ClientShouldReceiveSameMessageServerSent()
+        {
+            var message = Guid.NewGuid().ToString();
+            _server.PushMessage(message);
+            
+            _clientReceivedMessageEvent.WaitOne(Timeout);
+
+            _clientMessageQueue.TryDequeue(out var messageReceived);
             messageReceived.Should().Be(message);
         }
     }
