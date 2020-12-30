@@ -1,26 +1,29 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-using NUnit.Framework;
-using NamedPipeWrapper;
+using log4net;
 using log4net.Appender;
 using log4net.Config;
 using log4net.Layout;
+using NamedPipeWrapper;
+using NUnit.Framework;
 
 namespace UnitTests
 {
     [TestFixture]
     class SerializableTests
     {
-        private static readonly log4net.ILog Logger =
-            log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILog Logger =
+            LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         static SerializableTests()
         {
             var layout = new PatternLayout("%-6timestamp %-5level - %message%newline");
-            var appender = new ConsoleAppender { Layout = layout };
+            var appender = new ConsoleAppender {Layout = layout};
             layout.ActivateOptions();
             appender.ActivateOptions();
             BasicConfigurator.Configure(appender);
@@ -35,7 +38,6 @@ namespace UnitTests
         private int _expectedHash;
         private TestCollection _actualData;
         private int _actualHash;
-        private bool _clientDisconnected;
 
         private DateTime _startTime;
 
@@ -60,7 +62,6 @@ namespace UnitTests
             _expectedHash = 0;
             _actualData = null;
             _actualHash = 0;
-            _clientDisconnected = false;
 
             _server.ClientMessage += ServerOnClientMessage;
 
@@ -105,7 +106,8 @@ namespace UnitTests
 
         #region Events
 
-        private void ServerOnClientMessage(NamedPipeConnection<TestCollection, TestCollection> connection, TestCollection message)
+        private void ServerOnClientMessage(NamedPipeConnection<TestCollection, TestCollection> connection,
+            TestCollection message)
         {
             Logger.DebugFormat("Received collection with {0} items from the client", message.Count);
             _actualData = message;
@@ -126,6 +128,7 @@ namespace UnitTests
                 var item = new TestItem(i, _expectedData, RandomEnum());
                 _expectedData.Add(item);
             }
+
             _expectedHash = _expectedData.GetHashCode();
 
             _client.PushMessage(_expectedData);
@@ -134,16 +137,21 @@ namespace UnitTests
             if (_exceptions.Any())
                 throw new AggregateException(_exceptions);
 
-            Assert.NotNull(_actualHash, string.Format("Server should have received client's {0} item message", _expectedData.Count));
-            Assert.AreEqual(_expectedHash, _actualHash, string.Format("Hash codes for {0} item message should match", _expectedData.Count));
-            Assert.AreEqual(_expectedData.Count, _actualData.Count, string.Format("Collection lengths should be equal"));
-            
+            Assert.NotNull(_actualHash,
+                string.Format("Server should have received client's {0} item message", _expectedData.Count));
+            Assert.AreEqual(_expectedHash, _actualHash,
+                string.Format("Hash codes for {0} item message should match", _expectedData.Count));
+            Assert.AreEqual(_expectedData.Count, _actualData.Count,
+                string.Format("Collection lengths should be equal"));
+
             for (var i = 0; i < _actualData.Count; i++)
             {
                 var expectedItem = _expectedData[i];
                 var actualItem = _actualData[i];
                 Assert.AreEqual(expectedItem, actualItem, string.Format("Items at index {0} should be equal", i));
-                Assert.AreEqual(actualItem.Parent, _actualData, string.Format("Item at index {0}'s Parent property should reference the item's parent collection", i));
+                Assert.AreEqual(actualItem.Parent, _actualData,
+                    string.Format("Item at index {0}'s Parent property should reference the item's parent collection",
+                        i));
             }
         }
 
@@ -170,6 +178,7 @@ namespace UnitTests
             {
                 strs.Add(item.GetHashCode().ToString());
             }
+
             var str = string.Join(",", strs);
             return Hash(Encoding.UTF8.GetBytes(str)).GetHashCode();
         }
@@ -181,7 +190,7 @@ namespace UnitTests
         /// <returns></returns>
         private static string Hash(byte[] bytes)
         {
-            using (var sha1 = System.Security.Cryptography.SHA1.Create())
+            using (var sha1 = SHA1.Create())
             {
                 var hash = sha1.ComputeHash(bytes);
                 var sb = new StringBuilder();
@@ -189,6 +198,7 @@ namespace UnitTests
                 {
                     sb.Append(hash[i].ToString("x2"));
                 }
+
                 return sb.ToString();
             }
         }
@@ -225,7 +235,7 @@ namespace UnitTests
         {
             unchecked
             {
-                return (Id*397) ^ (int) Enum;
+                return (Id * 397) ^ (int) Enum;
             }
         }
     }
