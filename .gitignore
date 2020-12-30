@@ -9,3 +9,6 @@ publish
 /gh-pages
 *.backup
 /Artifacts
+
+# Rider
+.idea/
