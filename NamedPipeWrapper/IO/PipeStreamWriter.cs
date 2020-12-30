@@ -68,18 +68,19 @@ namespace NamedPipeWrapper.IO
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="T"/> is not marked as serializable.</exception>
         public void WriteObject(T obj)
         {
+            byte[] data;
             if (typeof(T) == typeof(string))
             {
-                WriteObject(Encoding.UTF8.GetBytes(obj.ToString()));
-                Flush();
+                data = Encoding.UTF8.GetBytes(obj.ToString());
+
             }
             else
             {
-                var data = Serialize(obj);
+                data = Serialize(obj);
                 WriteLength(data.Length);
-                WriteObject(data);
-                Flush();
             }
+            WriteObject(data);
+            Flush();
         }
 
         /// <summary>
