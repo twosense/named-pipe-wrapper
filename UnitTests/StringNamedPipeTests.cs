@@ -26,14 +26,14 @@ namespace UnitTests
         public void SetUp()
         {
             _serverMessageQueue = new ConcurrentQueue<string>();
-            
+
             _serverReceivedMessageEvent = new ManualResetEvent(false);
 
             StartServer();
             StartClient();
         }
 
-       
+
         [Test]
         public void ServerShouldReceiveSameMessageClientSent()
         {
@@ -46,24 +46,22 @@ namespace UnitTests
             messageReceived.Should().Be(message);
         }
 
-        //
-        // [Test]
-        // public void ClientShouldReceiveSameMessageServerSent()
-        // {
-        //     var message = Guid.NewGuid().ToString();
-        //     _server.PushMessage(message);
-        //     
-        //     _clientReceivedMessageEvent.WaitOne(Timeout);
-        //
-        //     _clientMessageQueue.TryDequeue(out var messageReceived);
-        //     messageReceived.Should().Be(message);
-        // }
-        
+
+        [Test]
+        public void ClientShouldReceiveSameMessageServerSent()
+        {
+            var message = Guid.NewGuid().ToString();
+            _server.PushMessage(message);
+
+            var messageReceived = ClientReadMessage();
+
+            messageReceived.Should().Be(message);
+        }
+
         private void StartServer()
         {
             _server = new StringNamedPipeServer(PipeName);
             _server.ClientMessage += OnClientMessageReceived;
-            _server.ClientConnected += OnClientConnected;
             _server.Start();
         }
 
@@ -73,27 +71,27 @@ namespace UnitTests
             _client.Connect();
 
             // Read pipe name
-            const int bufferSize = 1024;
-            var buffer = new byte[bufferSize];
-            _client.Read(buffer, 0, bufferSize);
-            var pipeName = Encoding.UTF8.GetString(buffer).TrimEnd('\0');
+            var pipeName = ClientReadMessage();
             _client.Close();
-            
+
             // Connect to data pipe
             _client = new NamedPipeClientStream(pipeName);
             _client.Connect();
         }
-        
+
+        private string ClientReadMessage()
+        {
+            const int bufferSize = 1024;
+            var buffer = new byte[bufferSize];
+            _client.Read(buffer, 0, bufferSize);
+            return Encoding.UTF8.GetString(buffer).TrimEnd('\0');
+        }
+
         private void ClientSendMessage(string message)
         {
             var messageBytes = Encoding.UTF8.GetBytes(message);
             _client.Write(messageBytes, 0, messageBytes.Length);
             _client.Flush();
-        }
-        
-        private void OnClientConnected(NamedPipeConnection<string, string> connection)
-        {
-            return;
         }
 
         private void OnClientMessageReceived(NamedPipeConnection<string, string> connection, string message)
