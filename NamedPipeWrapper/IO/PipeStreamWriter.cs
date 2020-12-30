@@ -72,7 +72,6 @@ namespace NamedPipeWrapper.IO
             if (typeof(T) == typeof(string))
             {
                 data = Encoding.UTF8.GetBytes(obj.ToString());
-
             }
             else
             {
