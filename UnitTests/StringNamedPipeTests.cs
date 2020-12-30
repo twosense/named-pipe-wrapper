@@ -33,6 +33,32 @@ namespace UnitTests
             StartClient();
         }
 
+       
+        [Test]
+        public void ServerShouldReceiveSameMessageClientSent()
+        {
+            var message = Guid.NewGuid().ToString();
+            ClientSendMessage(message);
+
+            _serverReceivedMessageEvent.WaitOne(Timeout);
+
+            _serverMessageQueue.TryDequeue(out var messageReceived);
+            messageReceived.Should().Be(message);
+        }
+
+        //
+        // [Test]
+        // public void ClientShouldReceiveSameMessageServerSent()
+        // {
+        //     var message = Guid.NewGuid().ToString();
+        //     _server.PushMessage(message);
+        //     
+        //     _clientReceivedMessageEvent.WaitOne(Timeout);
+        //
+        //     _clientMessageQueue.TryDequeue(out var messageReceived);
+        //     messageReceived.Should().Be(message);
+        // }
+        
         private void StartServer()
         {
             _server = new StringNamedPipeServer(PipeName);
@@ -46,17 +72,25 @@ namespace UnitTests
             _client = new NamedPipeClientStream(PipeName);
             _client.Connect();
 
-            // Get pipe name
+            // Read pipe name
             const int bufferSize = 1024;
             var buffer = new byte[bufferSize];
             _client.Read(buffer, 0, bufferSize);
-            var pipeName = buffer.ToString();
+            var pipeName = Encoding.UTF8.GetString(buffer).TrimEnd('\0');
             _client.Close();
             
+            // Connect to data pipe
             _client = new NamedPipeClientStream(pipeName);
             _client.Connect();
         }
-
+        
+        private void ClientSendMessage(string message)
+        {
+            var messageBytes = Encoding.UTF8.GetBytes(message);
+            _client.Write(messageBytes, 0, messageBytes.Length);
+            _client.Flush();
+        }
+        
         private void OnClientConnected(NamedPipeConnection<string, string> connection)
         {
             return;
@@ -67,36 +101,5 @@ namespace UnitTests
             _serverMessageQueue.Enqueue(message);
             _serverReceivedMessageEvent.Set();
         }
-
-        [Test]
-        public void ServerShouldReceiveSameMessageClientSent()
-        {
-            var message = Guid.NewGuid().ToString();
-            ClientSendMessage(message);
-
-            _serverReceivedMessageEvent.WaitOne(Timeout);
-
-            _serverMessageQueue.TryDequeue(out var messageReceived);
-            messageReceived.Should().Be(message);
-        }
-
-        private void ClientSendMessage(string message)
-        {
-            var messageBytes = Encoding.UTF8.GetBytes(message);
-            _client.Write(messageBytes, 0, messageBytes.Length);
-            _client.Flush();
-        }
-        //
-        // [Test]
-        // public void ClientShouldReceiveSameMessageServerSent()
-        // {
-        //     var message = Guid.NewGuid().ToString();
-        //     _server.PushMessage(message);
-        //     
-        //     _clientReceivedMessageEvent.WaitOne(Timeout);
-        //
-        //     _clientMessageQueue.TryDequeue(out var messageReceived);
-        //     messageReceived.Should().Be(message);
-        // }
     }
 }

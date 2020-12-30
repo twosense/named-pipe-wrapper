@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
 
 namespace NamedPipeWrapper.IO
 {
@@ -80,8 +81,22 @@ namespace NamedPipeWrapper.IO
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="T"/> is not marked as serializable.</exception>
         public T ReadObject()
         {
+            if (typeof(T) == typeof(string))
+            {
+                return (T) ReadString();
+            }
             var len = ReadLength();
             return len == 0 ? default(T) : ReadObject(len);
+        }
+
+        private object ReadString()
+        {
+            const int bufferSize = 1024;
+            var data = new byte[bufferSize];
+            BaseStream.Read(data, 0, bufferSize);
+            var message = Encoding.UTF8.GetString(data).TrimEnd('\0');
+            
+            return message.Length > 0 ? message : null;
         }
     }
 }
