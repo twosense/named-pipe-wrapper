@@ -58,6 +58,7 @@ namespace UnitTests
             messageReceived.Should().Be(message);
         }
 
+        #region Helpers
         private void StartServer()
         {
             _server = new StringNamedPipeServer(PipeName);
@@ -99,5 +100,6 @@ namespace UnitTests
             _serverMessageQueue.Enqueue(message);
             _serverReceivedMessageEvent.Set();
         }
+        #endregion
     }
 }
