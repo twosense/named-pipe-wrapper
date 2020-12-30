@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.IO.Pipes;
+using System.Text;
 using System.Threading;
 using FluentAssertions;
 using NamedPipeWrapper;
@@ -15,38 +16,50 @@ namespace UnitTests
         private const int Timeout = 1000;
 
         private StringNamedPipeServer _server;
-        private StringNamedPipeClient _client;
+        private NamedPipeClientStream _client;
 
         private ConcurrentQueue<string> _serverMessageQueue;
-        private ConcurrentQueue<string> _clientMessageQueue;
-        
+
         private ManualResetEvent _serverReceivedMessageEvent;
-        private ManualResetEvent _clientReceivedMessageEvent;
 
         [SetUp]
         public void SetUp()
         {
             _serverMessageQueue = new ConcurrentQueue<string>();
-            _clientMessageQueue = new ConcurrentQueue<string>();
             
             _serverReceivedMessageEvent = new ManualResetEvent(false);
-            _clientReceivedMessageEvent = new ManualResetEvent(false);
 
-            _server = new StringNamedPipeServer(PipeName);
-            _client = new StringNamedPipeClient(PipeName);
-
-            _server.ClientMessage += OnClientMessageReceived;
-            _server.Start();
-
-            _client.ServerMessage += OnServerMessageReceived;
-            _client.Start();
-            _client.WaitForConnection();
+            StartServer();
+            StartClient();
         }
 
-        private void OnServerMessageReceived(NamedPipeConnection<string, string> connection, string message)
+        private void StartServer()
         {
-            _clientMessageQueue.Enqueue(message);
-            _clientReceivedMessageEvent.Set();
+            _server = new StringNamedPipeServer(PipeName);
+            _server.ClientMessage += OnClientMessageReceived;
+            _server.ClientConnected += OnClientConnected;
+            _server.Start();
+        }
+
+        private void StartClient()
+        {
+            _client = new NamedPipeClientStream(PipeName);
+            _client.Connect();
+
+            // Get pipe name
+            const int bufferSize = 1024;
+            var buffer = new byte[bufferSize];
+            _client.Read(buffer, 0, bufferSize);
+            var pipeName = buffer.ToString();
+            _client.Close();
+            
+            _client = new NamedPipeClientStream(pipeName);
+            _client.Connect();
+        }
+
+        private void OnClientConnected(NamedPipeConnection<string, string> connection)
+        {
+            return;
         }
 
         private void OnClientMessageReceived(NamedPipeConnection<string, string> connection, string message)
@@ -59,7 +72,7 @@ namespace UnitTests
         public void ServerShouldReceiveSameMessageClientSent()
         {
             var message = Guid.NewGuid().ToString();
-            _client.PushMessage(message);
+            ClientSendMessage(message);
 
             _serverReceivedMessageEvent.WaitOne(Timeout);
 
@@ -67,35 +80,23 @@ namespace UnitTests
             messageReceived.Should().Be(message);
         }
 
-        [Test]
-        public void ClientShouldReceiveSameMessageServerSent()
+        private void ClientSendMessage(string message)
         {
-            var message = Guid.NewGuid().ToString();
-            _server.PushMessage(message);
-            
-            _clientReceivedMessageEvent.WaitOne(Timeout);
-
-            _clientMessageQueue.TryDequeue(out var messageReceived);
-            messageReceived.Should().Be(message);
+            var messageBytes = Encoding.UTF8.GetBytes(message);
+            _client.Write(messageBytes, 0, messageBytes.Length);
+            _client.Flush();
         }
-    }
-
-    public class StringNamedPipeClient : NamedPipeClient<string>
-    {
-        public StringNamedPipeClient(string pipeName) : base(pipeName)
-        {
-        }
-    }
-
-    public class StringNamedPipeServer : NamedPipeServer<string>
-    {
-        public StringNamedPipeServer(string pipeName) : base(pipeName)
-        {
-        }
-
-        public StringNamedPipeServer(string pipeName, int bufferSize, PipeSecurity security) : base(pipeName,
-            bufferSize, security)
-        {
-        }
+        //
+        // [Test]
+        // public void ClientShouldReceiveSameMessageServerSent()
+        // {
+        //     var message = Guid.NewGuid().ToString();
+        //     _server.PushMessage(message);
+        //     
+        //     _clientReceivedMessageEvent.WaitOne(Timeout);
+        //
+        //     _clientMessageQueue.TryDequeue(out var messageReceived);
+        //     messageReceived.Should().Be(message);
+        // }
     }
 }
