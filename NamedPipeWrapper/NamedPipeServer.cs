@@ -259,15 +259,17 @@ namespace NamedPipeWrapper
 
 			try
 			{
+				dataPipe = CreatePipe(connectionPipeName);
+
 				// Send the client the name of the data pipe to use
 				handshakePipe = CreateAndConnectPipe();
 				var handshakeWrapper = new PipeStreamWrapper<string, string>(handshakePipe);
+
 				handshakeWrapper.WriteObject(connectionPipeName);
 				handshakeWrapper.WaitForPipeDrain();
 				handshakeWrapper.Close();
 
 				// Wait for the client to connect to the data pipe
-				dataPipe = CreatePipe(connectionPipeName);
 				dataPipe.WaitForConnection();
 
 				// Add the client's connection to the list of connections

@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
 
 namespace NamedPipeWrapper.IO
 {
@@ -67,8 +68,16 @@ namespace NamedPipeWrapper.IO
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="T"/> is not marked as serializable.</exception>
         public void WriteObject(T obj)
         {
-            var data = Serialize(obj);
-            WriteLength(data.Length);
+            byte[] data;
+            if (typeof(T) == typeof(string))
+            {
+                data = Encoding.UTF8.GetBytes(obj.ToString());
+            }
+            else
+            {
+                data = Serialize(obj);
+                WriteLength(data.Length);
+            }
             WriteObject(data);
             Flush();
         }
