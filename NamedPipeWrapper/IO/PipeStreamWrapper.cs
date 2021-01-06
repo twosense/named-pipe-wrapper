@@ -2,6 +2,7 @@
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.Serialization;
+using Twosense.WindowsService.ExposedInterfaces;
 
 namespace NamedPipeWrapper.IO
 {
@@ -70,6 +71,7 @@ namespace NamedPipeWrapper.IO
 
         private readonly PipeStreamReader<TRead> _reader;
         private readonly PipeStreamWriter<TWrite> _writer;
+        private IExposedLogger _logger;
 
         /// <summary>
         /// Constructs a new <c>PipeStreamWrapper</c> object that reads from and writes to the given <paramref name="stream"/>.
@@ -90,6 +92,7 @@ namespace NamedPipeWrapper.IO
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="TRead"/> is not marked as serializable.</exception>
         public TRead ReadObject()
         {
+            LogDebug("ReadObject");
             return _reader.ReadObject();
         }
 
@@ -100,6 +103,7 @@ namespace NamedPipeWrapper.IO
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="TRead"/> is not marked as serializable.</exception>
         public void WriteObject(TWrite obj)
         {
+            LogDebug("WriteObject");
             _writer.WriteObject(obj);
         }
 
@@ -111,6 +115,7 @@ namespace NamedPipeWrapper.IO
         /// <exception cref="IOException">The pipe is broken or another I/O error occurred.</exception>
         public void WaitForPipeDrain()
         {
+            LogDebug("WaitForPipeDrain");
             _writer.WaitForPipeDrain();
         }
 
@@ -119,7 +124,29 @@ namespace NamedPipeWrapper.IO
         /// </summary>
         public void Close()
         {
+            LogDebug("Close");
             BaseStream.Close();
+        }
+        
+        public void SetLogger(IExposedLogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void LogDebug(string message)
+        {
+            if (_logger != null)
+            {
+                _logger.LogDebug($"NamedPipeWrapper.IO.PipeStreamWrapper: {message}");
+            }
+        }
+
+        public void LogError(Exception exception, string message)
+        {
+            if (_logger != null)
+            {
+                _logger.LogError(exception, $"NamedPipeWrapper.IO.PipeStreamWrapper: {message}");
+            }
         }
     }
 }
