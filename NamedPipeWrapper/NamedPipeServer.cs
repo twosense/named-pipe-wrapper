@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Linq;
 using NamedPipeWrapper.IO;
 using NamedPipeWrapper.Threading;
+using Twosense.WindowsService.ExposedInterfaces;
 
 namespace NamedPipeWrapper
 {
@@ -71,12 +72,15 @@ namespace NamedPipeWrapper
 
 		private volatile bool _shouldKeepRunning;
 
+		private IExposedLogger _logger;
+
 		/// <summary>
 		/// Constructs a new <c>NamedPipeServer</c> object that listens for client connections on the given <paramref name="pipeName"/>.
 		/// </summary>
 		/// <param name="pipeName">Name of the pipe to listen on</param>
 		public Server(string pipeName)
 		{
+			LogDebug("Initialized");
 			_pipeName = pipeName;
 		}
 
@@ -88,6 +92,7 @@ namespace NamedPipeWrapper
 		/// <param name="security">And object that determine the access control and audit security for the pipe</param>
 		public Server(string pipeName, int bufferSize, PipeSecurity security)
 		{
+			LogDebug("Initialized");
 			_pipeName = pipeName;
 			_bufferSize = bufferSize;
 			_security = security;
@@ -99,8 +104,10 @@ namespace NamedPipeWrapper
 		/// </summary>
 		public void Start()
 		{
+			LogDebug("Start");
 			_shouldKeepRunning = true;
 			var worker = new Worker();
+			worker.SetLogger(_logger);
 			worker.Error += OnError;
 			worker.DoWork(ListenSync);
 		}
@@ -112,6 +119,7 @@ namespace NamedPipeWrapper
 		/// <param name="message"></param>
 		public void PushMessage(TWrite message)
 		{
+			LogDebug("PushMessage");
 			lock (_connections)
 			{
 				foreach (var client in _connections)
@@ -129,6 +137,7 @@ namespace NamedPipeWrapper
 		/// <param name="targetId">Specific client ID to send to.</param>
 		public void PushMessage(TWrite message, int targetId)
 		{
+			LogDebug($"PushMessage, targetId: {targetId}");
 			lock (_connections)
 			{
 				// Can we speed this up with Linq or does that add overhead?
@@ -151,6 +160,7 @@ namespace NamedPipeWrapper
 		/// <param name="targetIds">A list of client ID's to send to.</param>
 		public void PushMessage(TWrite message, List<int> targetIds)
 		{
+			LogDebug($"PushMessage, targetIds: {targetIds}");
 			lock (_connections)
 			{
 				// Can we speed this up with Linq or does that add overhead?
@@ -184,6 +194,7 @@ namespace NamedPipeWrapper
 		/// <param name="targetName">Specific client name to send to.</param>
 		public void PushMessage(TWrite message, string targetName)
 		{
+			LogDebug($"PushMessage, targetName: {targetName}");
 			lock (_connections)
 			{
 				// Can we speed this up with Linq or does that add overhead?
@@ -205,6 +216,7 @@ namespace NamedPipeWrapper
 		/// <param name="targetNames">A list of client names to send to.</param>
 		public void PushMessage(TWrite message, List<string> targetNames)
 		{
+			LogDebug($"PushMessage, targetNames: {targetNames}");
 			lock (_connections)
 			{
 				foreach (var client in _connections)
@@ -223,6 +235,7 @@ namespace NamedPipeWrapper
 		/// </summary>
 		public void Stop()
 		{
+			LogDebug("Stop");
 			_shouldKeepRunning = false;
 
 			lock (_connections)
@@ -246,11 +259,13 @@ namespace NamedPipeWrapper
 
 		private void ListenSync()
 		{
+			LogDebug("ListenSync");
 			while (_shouldKeepRunning) { WaitForConnection(); }
 		}
 
 		private void WaitForConnection()
 		{
+			LogDebug("WaitForConnection");
 			NamedPipeServerStream handshakePipe = null;
 			NamedPipeServerStream dataPipe = null;
 			NamedPipeConnection<TRead, TWrite> connection = null;
@@ -260,24 +275,36 @@ namespace NamedPipeWrapper
 			try
 			{
 				dataPipe = CreatePipe(connectionPipeName);
+				LogDebug("dataPipe created");
 
 				// Send the client the name of the data pipe to use
+				LogDebug("Send the client the name of the data pipe to use");
 				handshakePipe = CreateAndConnectPipe();
-				var handshakeWrapper = new PipeStreamWrapper<string, string>(handshakePipe);
+				LogDebug("handshakePipe created");
 
+				var handshakeWrapper = new PipeStreamWrapper<string, string>(handshakePipe);
+				LogDebug("handshakeWrapper created");
+
+
+				handshakeWrapper.SetLogger(_logger);
 				handshakeWrapper.WriteObject(connectionPipeName);
 				handshakeWrapper.WaitForPipeDrain();
 				handshakeWrapper.Close();
+				LogDebug("handshakeWrapper closed");
+
 
 				// Wait for the client to connect to the data pipe
+				LogDebug("Wait for the client to connect to the data pipe");
 				dataPipe.WaitForConnection();
 
+				LogDebug("Add the client's connection to the list of connections");
 				// Add the client's connection to the list of connections
 				connection = ConnectionFactory.CreateConnection<TRead, TWrite>(dataPipe);
 				connection.ReceiveMessage += ClientOnReceiveMessage;
 				connection.Disconnected += ClientOnDisconnected;
 				connection.Error += ConnectionOnError;
 				connection.Open();
+				LogDebug("Open connection");
 
 				lock (_connections) { _connections.Add(connection); }
 
@@ -286,9 +313,12 @@ namespace NamedPipeWrapper
 			// Catch the IOException that is raised if the pipe is broken or disconnected.
 			catch (Exception e)
 			{
+				LogError(e, "Named pipe is broken or disconnected");
 				Console.Error.WriteLine("Named pipe is broken or disconnected: {0}", e);
 
+				LogDebug("Cleanup handshakePipe");
 				Cleanup(handshakePipe);
+				LogDebug("Cleanup dataPipe");
 				Cleanup(dataPipe);
 
 				ClientOnDisconnected(connection);
@@ -297,6 +327,7 @@ namespace NamedPipeWrapper
 
 		private NamedPipeServerStream CreateAndConnectPipe()
 		{
+			LogDebug("CreateAndConnectPipe");
 			return _security == null
 				? PipeServerFactory.CreateAndConnectPipe(_pipeName)
 				: PipeServerFactory.CreateAndConnectPipe(_pipeName, _bufferSize, _security);
@@ -304,6 +335,7 @@ namespace NamedPipeWrapper
 
 		private NamedPipeServerStream CreatePipe(string connectionPipeName)
 		{
+			LogDebug($"CreatePipe: {connectionPipeName}");
 			return _security == null
 				? PipeServerFactory.CreatePipe(connectionPipeName)
 				: PipeServerFactory.CreatePipe(connectionPipeName, _bufferSize, _security);
@@ -312,13 +344,19 @@ namespace NamedPipeWrapper
 		private void ClientOnConnected(NamedPipeConnection<TRead, TWrite> connection)
 		{
 			if (ClientConnected != null)
+			{
+				LogDebug($"ClientOnConnected, connection.Id: {connection.Id}");
 				ClientConnected(connection);
+			}
 		}
 
 		private void ClientOnReceiveMessage(NamedPipeConnection<TRead, TWrite> connection, TRead message)
 		{
 			if (ClientMessage != null)
+			{
+				LogDebug($"ClientOnReceiveMessage, connection.Id: {connection.Id}");
 				ClientMessage(connection, message);
+			}
 		}
 
 		private void ClientOnDisconnected(NamedPipeConnection<TRead, TWrite> connection)
@@ -332,7 +370,10 @@ namespace NamedPipeWrapper
 			}
 
 			if (ClientDisconnected != null)
+			{
+				LogDebug($"ClientOnDisconnected, connection.Id: {connection.Id}");
 				ClientDisconnected(connection);
+			}
 		}
 
 		/// <summary>
@@ -340,6 +381,7 @@ namespace NamedPipeWrapper
 		/// </summary>
 		private void ConnectionOnError(NamedPipeConnection<TRead, TWrite> connection, Exception exception)
 		{
+			LogDebug($"ConnectionOnError, connection.Id: {connection.Id}");
 			OnError(exception);
 		}
 
@@ -350,11 +392,15 @@ namespace NamedPipeWrapper
 		private void OnError(Exception exception)
 		{
 			if (Error != null)
+			{
+				LogError(exception, "OnError");
 				Error(exception);
+			}
 		}
 
 		private string GetNextConnectionPipeName()
 		{
+			LogDebug("GetNextConnectionPipeName");
 			return string.Format("{0}_{1}", _pipeName, ++_nextPipeId);
 		}
 
@@ -368,5 +414,26 @@ namespace NamedPipeWrapper
 		}
 
 		#endregion
+		
+		public void SetLogger(IExposedLogger logger)
+		{
+			_logger = logger;
+		}
+
+		public void LogDebug(string message)
+		{
+			if (_logger != null)
+			{
+				_logger.LogDebug($"NamedPipeWrapper.NamedPipeServer: {message}");
+			}
+		}
+
+		public void LogError(Exception exception, string message)
+		{
+			if (_logger != null)
+			{
+				_logger.LogError(exception, $"NamedPipeWrapper.NamedPipeServer: {message}");
+			}
+		}
 	}
 }
