@@ -1,4 +1,4 @@
-﻿using System.IO.Pipes;
+using System.IO.Pipes;
 
 namespace NamedPipeWrapper
 {
@@ -14,7 +14,7 @@ namespace NamedPipeWrapper
 
 		public static NamedPipeServerStream CreatePipe(string pipeName)
 		{
-			return new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.WriteThrough);
+			return new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
 		}
 
 		public static NamedPipeServerStream CreateAndConnectPipe(string pipeName, int bufferSize, PipeSecurity security)
@@ -27,7 +27,7 @@ namespace NamedPipeWrapper
 
 		public static NamedPipeServerStream CreatePipe(string pipeName, int bufferSize, PipeSecurity security)
 		{
-			return new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.WriteThrough, bufferSize, bufferSize, security);
+			return new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous, bufferSize, bufferSize, security);
 		}
 	}
 }
