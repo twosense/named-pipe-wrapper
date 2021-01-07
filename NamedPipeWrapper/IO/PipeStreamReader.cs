@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.IO.Pipes;
 using System.Net;
@@ -94,7 +94,7 @@ namespace NamedPipeWrapper.IO
             const int bufferSize = 1024;
             var data = new byte[bufferSize];
             BaseStream.Read(data, 0, bufferSize);
-            var message = Encoding.UTF8.GetString(data).TrimEnd('\0');
+            var message = Encoding.Unicode.GetString(data).TrimEnd('\0');
             
             return message.Length > 0 ? message : null;
         }
