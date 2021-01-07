@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.IO.Pipes;
 using System.Text;
@@ -59,6 +59,7 @@ namespace UnitTests
         }
 
         #region Helpers
+
         private void StartServer()
         {
             _server = new StringNamedPipeServer(PipeName);
@@ -75,6 +76,9 @@ namespace UnitTests
             var pipeName = ClientReadMessage();
             _client.Close();
 
+            // Wait for data pipe connection to be created 
+            Thread.Sleep(1000);
+
             // Connect to data pipe
             _client = new NamedPipeClientStream(pipeName);
             _client.Connect();
@@ -85,12 +89,12 @@ namespace UnitTests
             const int bufferSize = 1024;
             var buffer = new byte[bufferSize];
             _client.Read(buffer, 0, bufferSize);
-            return Encoding.UTF8.GetString(buffer).TrimEnd('\0');
+            return Encoding.Unicode.GetString(buffer).TrimEnd('\0');
         }
 
         private void ClientSendMessage(string message)
         {
-            var messageBytes = Encoding.UTF8.GetBytes(message);
+            var messageBytes = Encoding.Unicode.GetBytes(message);
             _client.Write(messageBytes, 0, messageBytes.Length);
             _client.Flush();
         }
@@ -100,6 +104,7 @@ namespace UnitTests
             _serverMessageQueue.Enqueue(message);
             _serverReceivedMessageEvent.Set();
         }
+
         #endregion
     }
 }

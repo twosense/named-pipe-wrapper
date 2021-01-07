@@ -420,7 +420,7 @@ namespace NamedPipeWrapper
 			_logger = logger;
 		}
 
-		public void LogDebug(string message)
+		private void LogDebug(string message)
 		{
 			if (_logger != null)
 			{
@@ -428,7 +428,7 @@ namespace NamedPipeWrapper
 			}
 		}
 
-		public void LogError(Exception exception, string message)
+		private void LogError(Exception exception, string message)
 		{
 			if (_logger != null)
 			{
